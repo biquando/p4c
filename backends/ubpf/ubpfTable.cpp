@@ -86,10 +86,10 @@ class UbpfActionTranslationVisitor : public EBPF::CodeGenInspector {
         auto ef = mi->to<P4::ExternFunction>();
         if (ef != nullptr) {
             if (ef->method->name.name == program->model.drop.name) {
-                builder->appendFormat("%s = false", program->control->passVariable);
+                builder->appendFormat("%s = false", program->ingress->passVariable);
                 return false;
             } else if (ef->method->name.name == program->model.pass.name) {
-                builder->appendFormat("%s = true", program->control->passVariable);
+                builder->appendFormat("%s = true", program->ingress->passVariable);
                 return false;
             } else if (ef->method->name.name == program->model.ubpf_time_get_ns.name) {
                 builder->emitIndent();
@@ -97,7 +97,7 @@ class UbpfActionTranslationVisitor : public EBPF::CodeGenInspector {
                 return false;
             }
         }
-        program->control->codeGen->preorder(expression);
+        program->ingress->codeGen->preorder(expression);
         return false;
     }
 
