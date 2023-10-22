@@ -29,7 +29,7 @@ void UbpfTarget::emitIncludes(Util::SourceCodeBuilder *builder) const {
 
 void UbpfTarget::emitMain(Util::SourceCodeBuilder *builder, cstring functionName, cstring argName,
                           cstring standardMetdata) const {
-    builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata *%s)",
+    builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata_t *%s)",
                           functionName.c_str(), argName.c_str(), standardMetdata.c_str());
 }
 
@@ -103,17 +103,29 @@ void UbpfTarget::emitGetFromStandardMetadata(Util::SourceCodeBuilder *builder,
 }
 
 void UbpfTarget::emitUbpfHelpers(EBPF::CodeBuilder *builder) const {
+    // builder->append(
+    //     "static void *(*ubpf_map_lookup)(const void *, const void *) = (void *)1;\n"
+    //     "static int (*ubpf_map_update)(void *, const void *, void *) = (void *)2;\n"
+    //     "static int (*ubpf_map_delete)(void *, const void *) = (void *)3;\n"
+    //     "static int (*ubpf_map_add)(void *, const void *) = (void *)4;\n"
+    //     "static uint64_t (*ubpf_time_get_ns)() = (void *)5;\n"
+    //     "static uint32_t (*ubpf_hash)(const void *, uint64_t) = (void *)6;\n"
+    //     "static void (*ubpf_printf)(const char *fmt, ...) = (void *)7;\n"
+    //     "static void *(*ubpf_packet_data)(const void *) = (void *)9;\n"
+    //     "static void *(*ubpf_adjust_head)(const void *, uint64_t) = (void *)8;\n"
+    //     "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t) = (void *)11;\n"
+    //     "\n");
     builder->append(
-        "static void *(*ubpf_map_lookup)(const void *, const void *) = (void *)1;\n"
-        "static int (*ubpf_map_update)(void *, const void *, void *) = (void *)2;\n"
-        "static int (*ubpf_map_delete)(void *, const void *) = (void *)3;\n"
-        "static int (*ubpf_map_add)(void *, const void *) = (void *)4;\n"
-        "static uint64_t (*ubpf_time_get_ns)() = (void *)5;\n"
-        "static uint32_t (*ubpf_hash)(const void *, uint64_t) = (void *)6;\n"
-        "static void (*ubpf_printf)(const char *fmt, ...) = (void *)7;\n"
-        "static void *(*ubpf_packet_data)(const void *) = (void *)9;\n"
-        "static void *(*ubpf_adjust_head)(const void *, uint64_t) = (void *)8;\n"
-        "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t) = (void *)11;\n"
+        "static void *(*ubpf_map_lookup)(const void *, const void *);\n"
+        "static int (*ubpf_map_update)(void *, const void *, void *);\n"
+        "static int (*ubpf_map_delete)(void *, const void *);\n"
+        "static int (*ubpf_map_add)(void *, const void *);\n"
+        "static uint64_t (*ubpf_time_get_ns)();\n"
+        "static uint32_t (*ubpf_hash)(const void *, uint64_t);\n"
+        "static void (*ubpf_printf)(const char *fmt, ...);\n"
+        "static void *(*ubpf_packet_data)(const void *);\n"
+        "static void *(*ubpf_adjust_head)(const void *, uint64_t);\n"
+        "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t);\n"
         "\n");
     builder->newline();
     builder->appendLine(
@@ -121,7 +133,7 @@ void UbpfTarget::emitUbpfHelpers(EBPF::CodeBuilder *builder) const {
         "& ~(BPF_MASK(uint8_t, w) << s)) | (v << s) ; } while (0)");
     builder->appendLine(
         "#define write_byte(base, offset, v) do { "
-        "*(uint8_t*)((base) + (offset)) = (v); "
+        "*(uint8_t*)((uint8_t*)(base) + (offset)) = (v); "
         "} while (0)");
     builder->newline();
     builder->append(
@@ -145,40 +157,40 @@ void UbpfTarget::emitUbpfHelpers(EBPF::CodeBuilder *builder) const {
 }
 
 void UbpfTarget::emitChecksumHelpers(EBPF::CodeBuilder *builder) const {
-    builder->appendLine(
-        "inline uint16_t csum16_add(uint16_t csum, uint16_t addend) {\n"
-        "    uint16_t res = csum;\n"
-        "    res += addend;\n"
-        "    return (res + (res < addend));\n"
-        "}\n"
-        "inline uint16_t csum16_sub(uint16_t csum, uint16_t addend) {\n"
-        "    return csum16_add(csum, ~addend);\n"
-        "}\n"
-        "inline uint16_t csum_replace2(uint16_t csum, uint16_t old, uint16_t new) {\n"
-        "    return (~csum16_add(csum16_sub(~csum, old), new));\n"
-        "}\n");
-    builder->appendLine(
-        "inline uint16_t csum_fold(uint32_t csum) {\n"
-        "    uint32_t r = csum << 16 | csum >> 16;\n"
-        "    csum = ~csum;\n"
-        "    csum -= r;\n"
-        "    return (uint16_t)(csum >> 16);\n"
-        "}\n"
-        "inline uint32_t csum_unfold(uint16_t csum) {\n"
-        "    return (uint32_t)csum;\n"
-        "}\n"
-        "inline uint32_t csum32_add(uint32_t csum, uint32_t addend) {\n"
-        "    uint32_t res = csum;\n"
-        "    res += addend;\n"
-        "    return (res + (res < addend));\n"
-        "}\n"
-        "inline uint32_t csum32_sub(uint32_t csum, uint32_t addend) {\n"
-        "    return csum32_add(csum, ~addend);\n"
-        "}\n"
-        "inline uint16_t csum_replace4(uint16_t csum, uint32_t from, uint32_t to) {\n"
-        "    uint32_t tmp = csum32_sub(~csum_unfold(csum), from);\n"
-        "    return csum_fold(csum32_add(tmp, to));\n"
-        "}");
+    // builder->appendLine(
+    //     "inline uint16_t csum16_add(uint16_t csum, uint16_t addend) {\n"
+    //     "    uint16_t res = csum;\n"
+    //     "    res += addend;\n"
+    //     "    return (res + (res < addend));\n"
+    //     "}\n"
+    //     "inline uint16_t csum16_sub(uint16_t csum, uint16_t addend) {\n"
+    //     "    return csum16_add(csum, ~addend);\n"
+    //     "}\n"
+    //     "inline uint16_t csum_replace2(uint16_t csum, uint16_t old, uint16_t new) {\n"
+    //     "    return (~csum16_add(csum16_sub(~csum, old), new));\n"
+    //     "}\n");
+    // builder->appendLine(
+    //     "inline uint16_t csum_fold(uint32_t csum) {\n"
+    //     "    uint32_t r = csum << 16 | csum >> 16;\n"
+    //     "    csum = ~csum;\n"
+    //     "    csum -= r;\n"
+    //     "    return (uint16_t)(csum >> 16);\n"
+    //     "}\n"
+    //     "inline uint32_t csum_unfold(uint16_t csum) {\n"
+    //     "    return (uint32_t)csum;\n"
+    //     "}\n"
+    //     "inline uint32_t csum32_add(uint32_t csum, uint32_t addend) {\n"
+    //     "    uint32_t res = csum;\n"
+    //     "    res += addend;\n"
+    //     "    return (res + (res < addend));\n"
+    //     "}\n"
+    //     "inline uint32_t csum32_sub(uint32_t csum, uint32_t addend) {\n"
+    //     "    return csum32_add(csum, ~addend);\n"
+    //     "}\n"
+    //     "inline uint16_t csum_replace4(uint16_t csum, uint32_t from, uint32_t to) {\n"
+    //     "    uint32_t tmp = csum32_sub(~csum_unfold(csum), from);\n"
+    //     "    return csum_fold(csum32_add(tmp, to));\n"
+    //     "}");
 }
 
 }  // namespace UBPF

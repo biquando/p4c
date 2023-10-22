@@ -33,13 +33,59 @@ enum ubpf_action {
     REDIRECT
 }
 
-struct standard_metadata {
-    bit<32>     input_port;
+// struct standard_metadata {
+//     bit<32>     input_port;
+//     bit<32>     packet_length;
+//     ubpf_action output_action;
+//     bit<32>     output_port;
+//     bool        clone;
+//     bit<32>     clone_port;
+// }
+struct standard_metadata_t {
+    bit<9>      ingress_port;
+    bit<9>      egress_spec;
+    bit<9>      egress_port;
+    bit<32>     instance_type;
     bit<32>     packet_length;
-    ubpf_action output_action;
-    bit<32>     output_port;
-    bool        clone;
-    bit<32>     clone_port;
+    //
+    // @alias is used to generate the field_alias section of the BMV2 JSON.
+    // Field alias creates a mapping from the metadata name in P4 program to
+    // the behavioral model's internal metadata name. Here we use it to
+    // expose all metadata supported by simple switch to the user through
+    // standard_metadata_t.
+    //
+    // flattening fields that exist in bmv2-ss
+    // queueing metadata
+    @alias("queueing_metadata.enq_timestamp")
+    bit<32> enq_timestamp;
+    @alias("queueing_metadata.enq_qdepth")
+    bit<19> enq_qdepth;
+    @alias("queueing_metadata.deq_timedelta")
+    bit<32> deq_timedelta;
+    /// queue depth at the packet dequeue time.
+    @alias("queueing_metadata.deq_qdepth")
+    bit<19> deq_qdepth;
+
+    // intrinsic metadata
+    @alias("intrinsic_metadata.ingress_global_timestamp")
+    bit<48> ingress_global_timestamp;
+    @alias("intrinsic_metadata.egress_global_timestamp")
+    bit<48> egress_global_timestamp;
+    /// multicast group id (key for the mcast replication table)
+    @alias("intrinsic_metadata.mcast_grp")
+    bit<16> mcast_grp;
+    /// Replication ID for multicast
+    @alias("intrinsic_metadata.egress_rid")
+    bit<16> egress_rid;
+    /// Indicates that a verify_checksum() method has failed.
+    /// 1 if a checksum error was found, otherwise 0.
+    bit<1>  checksum_error;
+    /// Error produced by parsing
+    // error parser_error;
+    bit<32> parser_error;
+    /// set packet priority
+    @alias("intrinsic_metadata.priority")
+    bit<3> priority;
 }
 #endif
 
@@ -50,7 +96,7 @@ struct standard_metadata {
  * The mark_to_drop() modifies only the state hidden from the user's P4 program.
  * mark_to_drop() should be called only in the 'pipe' control.
  */
-extern void mark_to_drop();
+extern void mark_to_drop(inout standard_metadata_t standard_metadata);
 
 /*
  * The uBPF target can currently pass the packet or drop it.
@@ -155,13 +201,13 @@ extern bit<16> csum_replace4(in bit<16> csum,
  */
 
 #if UBPF_MODEL_VERSION >= 20200515
-parser parse<H, M>(packet_in packet, out H headers, inout M meta, inout standard_metadata std);
+parser parse<H, M>(packet_in packet, out H headers, inout M meta, inout standard_metadata_t std);
 #else
 parser parse<H, M>(packet_in packet, out H headers, inout M meta);
 #endif
 
 #if UBPF_MODEL_VERSION >= 20200515
-control pipeline<H, M>(inout H headers, inout M meta, inout standard_metadata std);
+control pipeline<H, M>(inout H headers, inout M meta, inout standard_metadata_t std);
 #else
 control pipeline<H, M>(inout H headers, inout M meta);
 #endif

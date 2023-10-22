@@ -57,7 +57,7 @@ class UBPFProgram : public EBPF::EBPFProgram {
         contextVar = cstring("ctx");
         lengthVar = cstring("pkt_len");
         endLabel = cstring("deparser");
-        stdMetadataVar = cstring("std_meta");
+        stdMetadataVar = cstring("standard_metadata");
         packetTruncatedSizeVar = cstring("packetTruncatedSize");
     }
 

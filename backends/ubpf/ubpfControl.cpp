@@ -202,7 +202,8 @@ void UBPFControlBodyTranslator::processApply(const P4::ApplyMethod *method) {
         builder->emitIndent();
         builder->appendLine("/* perform lookup */");
         builder->emitIndent();
-        builder->appendFormat("%s = ", valueName.c_str());
+        // builder->appendFormat("%s = ", valueName.c_str());
+        builder->appendFormat("%s = (%s *) ", valueName.c_str(), table->valueTypeName.c_str());
         builder->target->emitTableLookup(builder, table->dataMapName, keyname, valueName);
         builder->endOfStatement(true);
     }
@@ -220,7 +221,8 @@ void UBPFControlBodyTranslator::processApply(const P4::ApplyMethod *method) {
     builder->endOfStatement(true);
 
     builder->emitIndent();
-    builder->append("value = ");
+    // builder->append("value = ");
+    builder->appendFormat("value = (%s *) ", table->valueTypeName.c_str());
     builder->target->emitTableLookup(builder, table->defaultActionMapName,
                                      control->program->zeroKey, valueName);
     builder->endOfStatement(true);

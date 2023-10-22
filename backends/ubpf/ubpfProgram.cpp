@@ -225,6 +225,7 @@ void UBPFProgram::emitTableDefinition(EBPF::CodeBuilder *builder) const {
 
 void UBPFProgram::emitPktVariable(UbpfCodeBuilder *builder) const {
     builder->emitIndent();
+    // builder->appendFormat("void *%s = ", packetStartVar.c_str());
     builder->appendFormat("void *%s = ", packetStartVar.c_str());
     builder->target->emitGetPacketData(builder, contextVar);
     builder->endOfStatement(true);
