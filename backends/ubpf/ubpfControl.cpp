@@ -628,6 +628,18 @@ void UBPFControl::emitTableTypes(EBPF::CodeBuilder *builder) {
 void UBPFControl::emitTableInstances(EBPF::CodeBuilder *builder) {
     for (auto it : tables) it.second->emitInstance(builder);
     for (auto it : registers) it.second->emitInstance(builder);
+
+    builder->append("void setup_maps() ");
+    builder->blockStart();
+    for (auto it : tables) {
+        builder->emitIndent();
+        builder->appendFormat("map_create(&%s);", it.second->dataMapName);
+        builder->newline();
+        builder->emitIndent();
+        builder->appendFormat("map_create(&%s);", it.second->defaultActionMapName);
+        builder->newline();
+    }
+    builder->blockEnd(true);
 }
 
 void UBPFControl::emitTableInitializers(EBPF::CodeBuilder *builder) {

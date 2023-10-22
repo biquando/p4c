@@ -70,6 +70,72 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     emitPreamble(builder);
     builder->target->emitUbpfHelpers(builder);
 
+    cstring lookup =
+        "using std::vector;\n"
+        "using std::unordered_map;\n"
+        "vector<bf_lpm_trie_t *> lpm_tables;\n"
+        "vector<vector<char *>> array_tables_keys;\n"
+        "vector<vector<void *>> array_tables_vals;\n"
+        "vector<unordered_map<uint64_t, void *>> hashmap_tables;\n"
+        "\n"
+        "void map_create(ubpf_map_def *tbl) {\n"
+        "    bf_lpm_trie_t *lpm_p;\n"
+        "    switch (tbl->type) {\n"
+        "      case UBPF_MAP_TYPE_LPM_TRIE:\n"
+        "        lpm_p = bf_lpm_trie_create(tbl->key_size, false);\n"
+        "        lpm_tables.push_back(lpm_p);\n"
+        "        break;\n"
+        "      case UBPF_MAP_TYPE_ARRAY:\n"
+        "        array_tables_keys.emplace_back();\n"
+        "        break;\n"
+        "      case UBPF_MAP_TYPE_HASHMAP:\n"
+        "        array_tables_keys.emplace_back();\n"
+        "        break;\n"
+        "    }\n"
+        "}\n"
+        "\n"
+        "void *map_lookup(ubpf_map_def *tbl, void *key) {\n"
+        "    unsigned id = tbl->id;\n"
+        "    unsigned key_size = tbl->key_size;\n"
+        "    void *val = nullptr;\n"
+        "\n"
+        "    bf_lpm_trie_t *lpm;\n"
+        "    value_t lpmval;\n"
+        "    vector<char *> *keys;\n"
+        "    vector<void *> *vals;\n"
+        "    int nkeys;\n"
+        "    unordered_map<uint64_t, void *> map;\n"
+        "    uint64_t key_int;\n"
+        "    switch (tbl->type) {\n"
+        "      case UBPF_MAP_TYPE_LPM_TRIE:\n"
+        "        lpm = lpm_tables[id];\n"
+        "        bf_lpm_trie_lookup(lpm, (char *)key, &lpmval);\n"
+        "        val = (void *)lpmval;\n"
+        "        break;\n"
+        "      case UBPF_MAP_TYPE_ARRAY:\n"
+        "        keys = &array_tables_keys[id];\n"
+        "        vals = &array_tables_vals[id];\n"
+        "        nkeys = keys->size();\n"
+        "        for (int i = 0; i < nkeys; i++) {\n"
+        "            if (memcmp((*keys)[i], (char *)key, key_size) == 0) {\n"
+        "                val = (*vals)[i];\n"
+        "                break;\n"
+        "            }\n"
+        "        }\n"
+        "        break;\n"
+        "      case UBPF_MAP_TYPE_HASHMAP:\n"
+        "        map = hashmap_tables[id];\n"
+        "        key_int = *((uint64_t *)key);\n"
+        "        if (map.find(key_int) == map.end()) {\n"
+        "            break;\n"
+        "        }\n"
+        "        val = map[key_int];\n"
+        "        break;\n"
+        "    }\n"
+        "    return val;\n"
+        "}\n";
+    builder->append(lookup);
+
     builder->emitIndent();
     control->emitTableInstances(builder);
 
@@ -204,6 +270,10 @@ void UBPFProgram::emitTableDefinition(EBPF::CodeBuilder *builder) const {
     builder->newline();
 
     builder->emitIndent();
+    builder->append("unsigned int id;");
+    builder->newline();
+
+    builder->emitIndent();
     builder->append("unsigned int key_size;");
     builder->newline();
 
@@ -215,9 +285,9 @@ void UBPFProgram::emitTableDefinition(EBPF::CodeBuilder *builder) const {
     builder->append("unsigned int max_entries;");
     builder->newline();
 
-    builder->emitIndent();
-    builder->append("unsigned int nb_hash_functions;");
-    builder->newline();
+    // builder->emitIndent();
+    // builder->append("unsigned int nb_hash_functions;");
+    // builder->newline();
 
     builder->blockEnd(false);
     builder->endOfStatement(true);

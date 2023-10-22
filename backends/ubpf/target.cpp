@@ -24,6 +24,10 @@ void UbpfTarget::emitIncludes(Util::SourceCodeBuilder *builder) const {
         "#include <stdbool.h>\n"
         "#include <stddef.h>\n"
         "#include \"ubpf_common.h\"\n"
+        "#include <vector>\n"
+        "#include <unordered_map>\n"
+        "#include \"bf_lpm_trie/bf_lpm_trie.h\"\n"
+        "#include <string.h>\n"
         "\n");
 }
 
@@ -35,12 +39,12 @@ void UbpfTarget::emitMain(Util::SourceCodeBuilder *builder, cstring functionName
 
 void UbpfTarget::emitResizeBuffer(Util::SourceCodeBuilder *builder, cstring buffer,
                                   cstring offsetVar) const {
-    builder->appendFormat("ubpf_adjust_head(%s, %s)", buffer.c_str(), offsetVar.c_str());
+    // builder->appendFormat("ubpf_adjust_head(%s, %s)", buffer.c_str(), offsetVar.c_str());
 }
 
 void UbpfTarget::emitTableLookup(Util::SourceCodeBuilder *builder, cstring tblName, cstring key,
                                  UNUSED cstring value) const {
-    builder->appendFormat("ubpf_map_lookup(&%s, &%s)", tblName.c_str(), key.c_str());
+    builder->appendFormat("map_lookup(&%s, &%s)", tblName.c_str(), key.c_str());
 }
 
 void UbpfTarget::emitTableUpdate(Util::SourceCodeBuilder *builder, cstring tblName, cstring key,
@@ -58,18 +62,29 @@ void UbpfTarget::emitTableDecl(Util::SourceCodeBuilder *builder, cstring tblName
     builder->blockStart();
 
     cstring type;
+    static unsigned hashmap_id = 0;
+    static unsigned array_id = 0;
+    static unsigned lpm_id = 0;
+    unsigned id = -1;
     if (tableKind == EBPF::TableHash) {
         type = "UBPF_MAP_TYPE_HASHMAP";
+        id = hashmap_id++;
     } else if (tableKind == EBPF::TableArray) {
         type = "UBPF_MAP_TYPE_ARRAY";
+        id = array_id++;
     } else if (tableKind == EBPF::TableLPMTrie) {
         type = "UBPF_MAP_TYPE_LPM_TRIE";
+        id = lpm_id++;
     } else {
         BUG("%1%: unsupported table kind", tableKind);
     }
 
     builder->emitIndent();
     builder->appendFormat(".type = %s,", type);
+    builder->newline();
+
+    builder->emitIndent();
+    builder->appendFormat(".id = %d,", id++);
     builder->newline();
 
     builder->emitIndent();
@@ -85,9 +100,9 @@ void UbpfTarget::emitTableDecl(Util::SourceCodeBuilder *builder, cstring tblName
     builder->appendFormat(".max_entries = %d,", size);
     builder->newline();
 
-    builder->emitIndent();
-    builder->append(".nb_hash_functions = 0,");
-    builder->newline();
+    // builder->emitIndent();
+    // builder->append(".nb_hash_functions = 0,");
+    // builder->newline();
 
     builder->blockEnd(false);
     builder->endOfStatement(true);

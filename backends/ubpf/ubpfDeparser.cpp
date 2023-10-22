@@ -86,6 +86,13 @@ class OutHeaderSize final : public EBPF::CodeGenInspector {
         }
         unsigned width = ht->width_bits();
 
+        // Do this exactly once
+        static bool indented = false;
+        if (!indented) {
+            builder->emitIndent();
+            indented = true;
+        }
+
         builder->append("if (");
         visit(h);
         builder->append(".ebpf_valid) ");
@@ -338,8 +345,8 @@ void UBPFDeparser::emit(EBPF::CodeBuilder *builder) {
     builder->appendFormat("if (%s > 0) ", program->packetTruncatedSizeVar.c_str());
     builder->blockStart();
     builder->emitIndent();
-    builder->appendFormat("%s -= ubpf_truncate_packet(%s, %s)", program->lengthVar.c_str(),
-                          program->contextVar.c_str(), program->packetTruncatedSizeVar.c_str());
+    // builder->appendFormat("%s -= ubpf_truncate_packet(%s, %s)", program->lengthVar.c_str(),
+    //                       program->contextVar.c_str(), program->packetTruncatedSizeVar.c_str());
     builder->endOfStatement(true);
     builder->blockEnd(true);
     builder->emitIndent();
