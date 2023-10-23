@@ -44,7 +44,7 @@ void UbpfTarget::emitResizeBuffer(Util::SourceCodeBuilder *builder, cstring buff
 
 void UbpfTarget::emitTableLookup(Util::SourceCodeBuilder *builder, cstring tblName, cstring key,
                                  UNUSED cstring value) const {
-    builder->appendFormat("map_lookup(&%s, &%s)", tblName.c_str(), key.c_str());
+    builder->appendFormat("map_lookup_%s(&%s)", tblName.c_str(), key.c_str());
 }
 
 void UbpfTarget::emitTableUpdate(Util::SourceCodeBuilder *builder, cstring tblName, cstring key,

@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "ubpfTable.h"
 
+#include "backends/ebpf/codeGen.h"
+#include "backends/ebpf/target.h"
 #include "frontends/p4/coreLibrary.h"
 #include "frontends/p4/enumInstance.h"
 #include "frontends/p4/methodInstance.h"
@@ -500,6 +502,277 @@ void UBPFTable::emitInitializer(EBPF::CodeBuilder *builder) {
                 "and should not be used.",
                 entries);
     }
+}
+
+void UBPFTable::emitDefaultAction(EBPF::CodeBuilder *builder, cstring varName) {
+    // START
+    const IR::P4Table *t = table->container;
+    const IR::Expression *defaultAction = t->getDefaultAction();
+    BUG_CHECK(defaultAction->is<IR::MethodCallExpression>(), "%1%: expected an action call",
+            defaultAction);
+    auto mce = defaultAction->to<IR::MethodCallExpression>();
+    auto mi = P4::MethodInstance::resolve(mce, program->refMap, program->typeMap);
+
+    auto defact = t->properties->getProperty(IR::TableProperties::defaultActionPropertyName);
+    // uBPF does not support setting default action at compile time.
+    // Default action must be set from a control plane and 'const' qualifier
+    // does not permit to modify default action by a control plane.
+    if (defact->isConstant) {
+        ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
+                "%1%: uBPF target does not allow 'const default_action'. "
+                "Use `default_action` instead.",
+                defact);
+    }
+    auto ac = mi->to<P4::ActionCall>();
+    BUG_CHECK(ac != nullptr, "%1%: expected an action call", mce);
+    auto action = ac->action;
+
+    cstring name = generateActionName(action);
+    cstring defaultTable = defaultActionMapName;
+    cstring value = name + "_value";
+
+    builder->emitIndent();
+    builder->appendFormat("struct %s %s = ", valueTypeName.c_str(), varName);
+    builder->blockStart();
+    builder->emitIndent();
+    builder->appendFormat(".action = %s,", name.c_str());
+    builder->newline();
+    EBPF::CodeGenInspector cg(program->refMap, program->typeMap);
+    cg.setBuilder(builder);
+    builder->emitIndent();
+    builder->appendFormat(".u = {.%s = {", name.c_str());
+    for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
+        auto arg = mi->substitution.lookup(p);
+        arg->apply(cg);
+        builder->append(",");
+    }
+    builder->append("}},\n");
+    builder->blockEnd(false);
+    builder->endOfStatement(true);
+    // END
+}
+
+void UBPFTable::emitLPMFunctions(EBPF::CodeBuilder *builder) {
+    cstring tblname = dataMapName;
+
+    // Data structures
+    builder->appendFormat("bf_lpm_trie_t *map_lpm_%s;\n", tblname);
+    builder->appendFormat("vector<%s> map_values_%s;\n", valueTypeName, tblname);
+    builder->appendFormat("%s map_default_%s;\n", valueTypeName, tblname);
+
+    // Create
+    builder->appendFormat("void map_create_%s() ", tblname);
+    builder->blockStart();
+    for (auto c : keyGenerator->keyElements) {
+        cstring fieldName = ::get(keyFieldNames, c);
+        builder->emitIndent();
+        builder->appendFormat("map_lpm_%s = bf_lpm_trie_create(member_sizeof(%s, %s), false);",
+            tblname, keyTypeName, fieldName); // TODO: this only works if there's one field
+        builder->newline();
+    }
+    emitDefaultAction(builder, "default_action");
+    builder->emitIndent();
+    // builder->appendFormat("map_values_%s.push_back(default_action);", tblname);
+    builder->appendFormat("map_default_%s = default_action;", tblname);
+    builder->newline();
+    builder->blockEnd(true);
+
+    // Add entry
+    builder->appendFormat("void map_add_entry_%s(%s *key, %s *val) ",
+        tblname, keyTypeName, valueTypeName);
+    builder->blockStart();
+    for (auto c : keyGenerator->keyElements) {
+        cstring fieldName = ::get(keyFieldNames, c);
+
+        builder->emitIndent();
+        builder->appendFormat("map_values_%s.push_back(*val);", tblname);
+        builder->newline();
+
+        builder->emitIndent();
+        builder->appendFormat("bf_lpm_trie_insert(map_lpm_%s, (char *)&key->%s, key->prefix_len0, map_values_%s.size() - 1);",
+            tblname, fieldName, tblname);
+        builder->newline();
+    }
+    builder->blockEnd(true);
+
+    // Lookup
+    builder->appendFormat("%s *map_lookup_%s(%s *key) ",
+        valueTypeName, tblname, keyTypeName);
+    builder->blockStart();
+    for (auto c : keyGenerator->keyElements) {
+        cstring fieldName = ::get(keyFieldNames, c);
+
+        builder->emitIndent();
+        builder->appendFormat("value_t idx = -1;", tblname);
+        builder->newline();
+
+        builder->emitIndent();
+        builder->appendFormat("bf_lpm_trie_lookup(map_lpm_%s, (char *)&key->%s, &idx);",
+            tblname, fieldName);
+        builder->newline();
+
+        builder->emitIndent();
+        builder->append("if (idx < 0) ");
+        builder->blockStart();
+        builder->emitIndent();
+        // builder->appendLine("idx = 0;  // default action");
+        builder->appendLine("return NULL;");
+        builder->blockEnd(true);
+
+        builder->emitIndent();
+        builder->appendFormat("return &map_values_%s[idx];", tblname);
+        builder->newline();
+    }
+    builder->blockEnd(true);
+
+    // Default
+    // builder->appendFormat("%s *map_default_%s() ",
+    //     valueTypeName, tblname, keyTypeName);
+    // builder->blockStart();
+    // builder->emitIndent();
+    // builder->appendFormat("return &map_values_%s[0];", tblname);
+    // builder->newline();
+    // builder->blockEnd(true);
+}
+
+void UBPFTable::emitExactFunctions(EBPF::CodeBuilder *builder) {
+    cstring tblname = dataMapName;
+
+    // Hash and equality functions
+    builder->appendFormat(
+    "struct map_hashfn_%s {\n"
+    "    std::size_t operator()(const %s &key) const {\n"
+    "        auto *bytes = (const unsigned char *)&key;\n"
+    "        std::size_t hash = 0;\n"
+    "        for (std::size_t i = 0; i < sizeof key; i++) {\n"
+    "            hash = hash * 31 + bytes[i];\n"
+    "        }\n"
+    "        return hash;\n"
+    "    }\n"
+    "};\n"
+    "struct map_hasheq_%s {\n"
+    "    bool operator()(const %s &lhs, const %s &rhs) const {\n"
+    "        return memcmp(&lhs, &rhs, sizeof lhs) == 0;\n"
+    "    }\n"
+    "};\n",
+    tblname, keyTypeName, tblname, keyTypeName, keyTypeName);
+
+    // Data structures
+    builder->appendFormat("unordered_map<%s, %s, map_hashfn_%s, map_hasheq_%s> map_hashmap_%s;\n",
+        keyTypeName, valueTypeName, tblname, tblname, tblname);
+    builder->appendFormat("%s map_default_%s;\n", valueTypeName, tblname);
+
+    // Create
+    builder->appendFormat("void map_create_%s() ", tblname);
+    builder->blockStart();
+    emitDefaultAction(builder, "default_action");
+    builder->emitIndent();
+    builder->appendFormat("map_default_%s = default_action;", tblname);
+    builder->newline();
+    builder->blockEnd(true);
+
+    // Add entry
+    builder->appendFormat("void map_add_entry_%s(%s *key, %s *val) ",
+        tblname, keyTypeName, valueTypeName);
+    builder->blockStart();
+    builder->emitIndent();
+    builder->appendFormat("map_hashmap_%s[*key] = *val;", tblname);
+    builder->newline();
+    builder->blockEnd(true);
+
+    // Lookup
+    builder->appendFormat("%s *map_lookup_%s(%s *key) ",
+        valueTypeName, tblname, keyTypeName);
+    builder->blockStart();
+    builder->emitIndent();
+    builder->appendFormat("if (map_hashmap_%s.find(*key) == map_hashmap_%s.end()) ",
+        tblname, tblname);
+    builder->blockStart();
+    builder->emitIndent();
+    // builder->appendLine("idx = 0;  // default action");
+    builder->appendLine("return NULL;");
+    builder->blockEnd(true);
+
+    builder->emitIndent();
+    builder->appendFormat("return &map_hashmap_%s[*key];", tblname);
+    builder->newline();
+    builder->blockEnd(true);
+
+    // Default
+    // builder->appendFormat("%s *map_default_%s() ",
+    //     valueTypeName, tblname, keyTypeName);
+    // builder->blockStart();
+    // builder->emitIndent();
+    // builder->appendFormat("return &map_values_%s[0];", tblname);
+    // builder->newline();
+    // builder->blockEnd(true);
+}
+
+void UBPFTable::emitMapFunctions(EBPF::CodeBuilder *builder) {
+    // builder->emitIndent();
+    // builder->appendFormat("struct %s ", keyTypeName.c_str());
+    // builder->blockStart();
+
+    // EBPF::CodeGenInspector commentGen(program->refMap, program->typeMap);
+    // commentGen.setBuilder(builder);
+
+    if (keyGenerator != nullptr) {
+        // Use this to order elements by size
+        // std::multimap<size_t, const IR::KeyElement *> ordered;
+        // for (auto c : keyGenerator->keyElements) {
+        //     auto type = program->typeMap->getType(c->expression);
+        //     auto ebpfType = UBPFTypeFactory::instance->create(type);
+        //     cstring fieldName = c->expression->toString().replace('.', '_');
+        //     if (!ebpfType->is<EBPF::IHasWidth>()) {
+        //         ::error(ErrorType::ERR_INVALID, "%1%: illegal type %2% for key field", c, type);
+        //         return;
+        //     }
+        //     unsigned width = ebpfType->to<EBPF::IHasWidth>()->widthInBits();
+        //     ordered.emplace(width, c);
+        //     keyTypes.emplace(c, ebpfType);
+        //     keyFieldNames.emplace(c, fieldName);
+        // }
+
+        // Emit key in decreasing order size - this way there will be no gaps
+        // unsigned key_idx = 0;
+        // for (auto it = ordered.rbegin(); it != ordered.rend(); ++it) {
+        //     auto c = it->second;
+        //     if (tableKind == EBPF::TableLPMTrie) {
+        //         builder->emitIndent();
+        //         builder->appendFormat("uint32_t prefix_len%d;", key_idx);
+        //         builder->newline();
+        //     }
+        //     auto ebpfType = ::get(keyTypes, c);
+        //     builder->emitIndent();
+        //     cstring fieldName = ::get(keyFieldNames, c);
+        //     ebpfType->declare(builder, fieldName, false);
+        //     builder->append("; /* ");
+        //     c->expression->apply(commentGen);
+        //     builder->append(" */");
+        //     builder->newline();
+
+        //     auto mtdecl = program->refMap->getDeclaration(c->matchType->path, true);
+        //     auto matchType = mtdecl->getNode()->to<IR::Declaration_ID>();
+        //     if (matchType->name.name != P4::P4CoreLibrary::instance().exactMatch.name &&
+        //         matchType->name.name != P4::P4CoreLibrary::instance().lpmMatch.name)
+        //         ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET, "Match of type %1% not supported",
+        //                 c->matchType);
+        //     key_idx++;
+        // }
+    }
+
+    builder->appendFormat("// BEGIN MAP FUNCTIONS: %s\n", dataMapName);
+    if (tableKind == EBPF::TableLPMTrie) {
+        emitLPMFunctions(builder);
+    } else if (tableKind == EBPF::TableHash) {
+        emitExactFunctions(builder);
+    } else {
+        builder->appendLine("// ERROR: table type not supported");
+    }
+    builder->appendFormat("// END MAP FUNCTIONS: %s\n\n", dataMapName);
+
+    // builder->blockEnd(false);
+    // builder->endOfStatement(true);
 }
 
 }  // namespace UBPF

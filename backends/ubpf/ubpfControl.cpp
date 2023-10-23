@@ -221,10 +221,11 @@ void UBPFControlBodyTranslator::processApply(const P4::ApplyMethod *method) {
     builder->endOfStatement(true);
 
     builder->emitIndent();
-    // builder->append("value = ");
-    builder->appendFormat("value = (%s *) ", table->valueTypeName.c_str());
-    builder->target->emitTableLookup(builder, table->defaultActionMapName,
-                                     control->program->zeroKey, valueName);
+    // // builder->append("value = ");
+    // builder->appendFormat("value = (%s *) ", table->valueTypeName.c_str());
+    // builder->target->emitTableLookup(builder, table->defaultActionMapName,
+    //                                  control->program->zeroKey, valueName);
+    builder->appendFormat("value = &map_default_%s", table->dataMapName);
     builder->endOfStatement(true);
     builder->blockEnd(false);
     builder->append(" else ");
@@ -628,22 +629,28 @@ void UBPFControl::emitTableTypes(EBPF::CodeBuilder *builder) {
 void UBPFControl::emitTableInstances(EBPF::CodeBuilder *builder) {
     for (auto it : tables) it.second->emitInstance(builder);
     for (auto it : registers) it.second->emitInstance(builder);
-
-    builder->append("void setup_maps() ");
-    builder->blockStart();
-    for (auto it : tables) {
-        builder->emitIndent();
-        builder->appendFormat("map_create(&%s);", it.second->dataMapName);
-        builder->newline();
-        builder->emitIndent();
-        builder->appendFormat("map_create(&%s);", it.second->defaultActionMapName);
-        builder->newline();
-    }
-    builder->blockEnd(true);
 }
 
 void UBPFControl::emitTableInitializers(EBPF::CodeBuilder *builder) {
     for (auto it : tables) it.second->emitInitializer(builder);
+}
+
+void UBPFControl::emitTableMapFunctions(EBPF::CodeBuilder *builder) {
+    builder->appendLine("#define member_sizeof(type, member) sizeof(((type *)0)->member)");
+    builder->appendLine("using std::vector;");
+    builder->appendLine("using std::unordered_map;");
+    for (auto it : tables) {
+        it.second->emitMapFunctions(builder);
+    }
+
+    builder->append("void create_maps() ");
+    builder->blockStart();
+    for (auto it : tables) {
+        builder->emitIndent();
+        builder->appendFormat("map_create_%s();", it.second->dataMapName);
+        builder->newline();
+    }
+    builder->blockEnd(true);
 }
 
 bool UBPFControl::build() {

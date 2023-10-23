@@ -78,6 +78,7 @@ class UBPFControl : public EBPF::EBPFControl {
     void emitTableTypes(EBPF::CodeBuilder *builder);
     void emitTableInstances(EBPF::CodeBuilder *builder);
     void emitTableInitializers(EBPF::CodeBuilder *builder);
+    void emitTableMapFunctions(EBPF::CodeBuilder *builder);
     bool build();
 
     UBPFTable *getTable(cstring name) const {
