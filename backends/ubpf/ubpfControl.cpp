@@ -553,13 +553,14 @@ bool UBPFControlBodyTranslator::preorder(const IR::Member *expression) {
 }
 
 UBPFControl::UBPFControl(const UBPFProgram *program, const IR::ControlBlock *block,
-                         const IR::Parameter *parserHeaders)
+                         const IR::Parameter *parserHeaders, cstring name)
     : EBPF::EBPFControl(program, block, parserHeaders),
       program(program),
       controlBlock(block),
       headers(nullptr),
       parserHeaders(parserHeaders),
-      codeGen(nullptr) {}
+      codeGen(nullptr),
+      controlName(name) {}
 
 void UBPFControl::scanConstants() {
     for (auto c : controlBlock->constantValue) {
@@ -636,14 +637,11 @@ void UBPFControl::emitTableInitializers(EBPF::CodeBuilder *builder) {
 }
 
 void UBPFControl::emitTableMapFunctions(EBPF::CodeBuilder *builder) {
-    builder->appendLine("#define member_sizeof(type, member) sizeof(((type *)0)->member)");
-    builder->appendLine("using std::vector;");
-    builder->appendLine("using std::unordered_map;");
     for (auto it : tables) {
         it.second->emitMapFunctions(builder);
     }
 
-    builder->append("void create_maps() ");
+    builder->appendFormat("void create_maps_%s() ", controlName);
     builder->blockStart();
     for (auto it : tables) {
         builder->emitIndent();

@@ -70,8 +70,10 @@ class UBPFControl : public EBPF::EBPFControl {
     std::map<cstring, UBPFTable *> tables;
     std::map<cstring, UBPFRegister *> registers;
 
+    cstring controlName;
+
     UBPFControl(const UBPFProgram *program, const IR::ControlBlock *block,
-                const IR::Parameter *parserHeaders);
+                const IR::Parameter *parserHeaders, const cstring name);
 
     void emit(EBPF::CodeBuilder *builder);
     void emitDeclaration(EBPF::CodeBuilder *builder, const IR::Declaration *decl);

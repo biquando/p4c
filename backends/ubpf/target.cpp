@@ -62,29 +62,18 @@ void UbpfTarget::emitTableDecl(Util::SourceCodeBuilder *builder, cstring tblName
     builder->blockStart();
 
     cstring type;
-    static unsigned hashmap_id = 0;
-    static unsigned array_id = 0;
-    static unsigned lpm_id = 0;
-    unsigned id = -1;
     if (tableKind == EBPF::TableHash) {
         type = "UBPF_MAP_TYPE_HASHMAP";
-        id = hashmap_id++;
     } else if (tableKind == EBPF::TableArray) {
         type = "UBPF_MAP_TYPE_ARRAY";
-        id = array_id++;
     } else if (tableKind == EBPF::TableLPMTrie) {
         type = "UBPF_MAP_TYPE_LPM_TRIE";
-        id = lpm_id++;
     } else {
         BUG("%1%: unsupported table kind", tableKind);
     }
 
     builder->emitIndent();
     builder->appendFormat(".type = %s,", type);
-    builder->newline();
-
-    builder->emitIndent();
-    builder->appendFormat(".id = %d,", id++);
     builder->newline();
 
     builder->emitIndent();

@@ -220,7 +220,8 @@ control pipeline<H, M>(inout H headers, inout M meta);
 control deparser<H>(packet_out b, in H headers);
 
 package ubpf<H, M>(parse<H, M> prs,
-                pipeline<H, M> p,
+                pipeline<H, M> ingress,
+                pipeline<H, M> egress,
                 deparser<H> dprs);
 
 #endif /* _UBPF_MODEL_P4_ */

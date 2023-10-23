@@ -26,10 +26,11 @@ limitations under the License.
 namespace UBPF {
 
 struct Pipeline_Model : public ::Model::Elem {
-    Pipeline_Model() : Elem("Pipeline"), parser("prs"), control("p"), deparser("dprs") {}
+    Pipeline_Model() : Elem("Pipeline"), parser("prs"), ingress("ingress"), egress("egress"), deparser("dprs") {}
 
     ::Model::Elem parser;
-    ::Model::Elem control;
+    ::Model::Elem ingress;
+    ::Model::Elem egress;
     ::Model::Elem deparser;
 };
 

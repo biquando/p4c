@@ -37,7 +37,8 @@ class UBPFType;
 class UBPFProgram : public EBPF::EBPFProgram {
  public:
     UBPFParser *parser{};
-    UBPFControl *control{};
+    UBPFControl *ingress{};
+    UBPFControl *egress{};
     UBPFDeparser *deparser{};
     UBPFModel &model;
 

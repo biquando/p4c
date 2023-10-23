@@ -33,8 +33,8 @@ bool UBPFProgram::build() {
                   "; are you using the wrong architecture?",
                   pack->type->name);
 
-    if (pack->getConstructorParameters()->size() != 3) {
-        ::error(ErrorType::ERR_MODEL, "Expected toplevel package %1% to have 3 parameters",
+    if (pack->getConstructorParameters()->size() != 4) {
+        ::error(ErrorType::ERR_MODEL, "Expected toplevel package %1% to have 4 parameters",
                 pack->type);
         return false;
     }
@@ -45,11 +45,16 @@ bool UBPFProgram::build() {
     success = parser->build();
     if (!success) return success;
 
-    auto cb = pack->getParameterValue(model.pipeline.control.name)->to<IR::ControlBlock>();
-    BUG_CHECK(cb != nullptr, "No control block found");
-    control = new UBPFControl(this, cb, parser->headers);
-    success = control->build();
+    auto cb1 = pack->getParameterValue(model.pipeline.ingress.name)->to<IR::ControlBlock>();
+    BUG_CHECK(cb1 != nullptr, "No ingress block found");
+    ingress = new UBPFControl(this, cb1, parser->headers, "ingress");
+    success = ingress->build();
+    if (!success) return success;
 
+    auto cb2 = pack->getParameterValue(model.pipeline.egress.name)->to<IR::ControlBlock>();
+    BUG_CHECK(cb2 != nullptr, "No egress block found");
+    egress = new UBPFControl(this, cb2, parser->headers, "egress");
+    success = egress->build();
     if (!success) return success;
 
     auto dpb = pack->getParameterValue(model.pipeline.deparser.name)->to<IR::ControlBlock>();
@@ -143,10 +148,16 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     // builder->append(lookup);
 
     builder->emitIndent();
-    control->emitTableInstances(builder);
+    ingress->emitTableInstances(builder);
+    egress->emitTableInstances(builder);
 
     builder->emitIndent();
-    control->emitTableMapFunctions(builder);
+    builder->appendLine("#define member_sizeof(type, member) sizeof(((type *)0)->member)");
+    builder->appendLine("using std::vector;");
+    builder->appendLine("using std::unordered_map;");
+    builder->newline();
+    ingress->emitTableMapFunctions(builder);
+    egress->emitTableMapFunctions(builder);
 
     builder->emitIndent();
     builder->target->emitChecksumHelpers(builder);
@@ -187,7 +198,7 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     builder->blockEnd(true);
 
     builder->emitIndent();
-    builder->appendFormat("if (%s)\n", control->passVariable);
+    builder->appendFormat("if (%s && %s)\n", ingress->passVariable, egress->passVariable);
     builder->increaseIndent();
     builder->emitIndent();
     builder->appendFormat("return %s;\n", builder->target->forwardReturnCode().c_str());
@@ -211,14 +222,16 @@ void UBPFProgram::emitH(EBPF::CodeBuilder *builder, cstring) {
     builder->newline();
     emitTableDefinition(builder);
     builder->newline();
-    control->emitTableTypes(builder);
+    ingress->emitTableTypes(builder);
+    egress->emitTableTypes(builder);
     builder->appendLine("#if CONTROL_PLANE");
     builder->appendLine("static void init_tables() ");
     builder->blockStart();
     builder->emitIndent();
     builder->appendFormat("uint32_t %s = 0;", zeroKey.c_str());
     builder->newline();
-    control->emitTableInitializers(builder);
+    ingress->emitTableInitializers(builder);
+    egress->emitTableInitializers(builder);
     builder->blockEnd(true);
     builder->appendLine("#endif");
     builder->appendLine("#endif");
@@ -333,11 +346,19 @@ void UBPFProgram::emitLocalVariables(EBPF::CodeBuilder *builder) {
     builder->newline();
 
     builder->emitIndent();
-    builder->appendFormat("uint8_t %s = 1;", control->passVariable);
+    builder->appendFormat("uint8_t %s = 1;", ingress->passVariable);
     builder->newline();
 
     builder->emitIndent();
-    builder->appendFormat("uint8_t %s = 0;", control->hitVariable);
+    builder->appendFormat("uint8_t %s = 1;", egress->passVariable);
+    builder->newline();
+
+    builder->emitIndent();
+    builder->appendFormat("uint8_t %s = 0;", ingress->hitVariable);
+    builder->newline();
+
+    builder->emitIndent();
+    builder->appendFormat("uint8_t %s = 0;", egress->hitVariable);
     builder->newline();
 
     builder->emitIndent();
@@ -356,11 +377,20 @@ void UBPFProgram::emitLocalVariables(EBPF::CodeBuilder *builder) {
 void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     builder->emitIndent();
     builder->append(IR::ParserState::accept);
+    builder->append(": // ingress");
+    builder->newline();
+    builder->emitIndent();
+    builder->blockStart();
+    ingress->emit(builder);
+    builder->blockEnd(true);
+
+    builder->emitIndent();
+    builder->append("egress");
     builder->append(":");
     builder->newline();
     builder->emitIndent();
     builder->blockStart();
-    control->emit(builder);
+    egress->emit(builder);
     builder->blockEnd(true);
 }
 
