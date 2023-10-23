@@ -182,20 +182,24 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
 
     emitLocalVariables(builder);
     builder->newline();
+    builder->appendLine("// MARKER: PARSER BEGIN");
     builder->emitIndent();
     builder->appendFormat("goto %s;", IR::ParserState::start.c_str());
     builder->newline();
 
     parser->emit(builder);
+    builder->appendLine("// MARKER: PARSER END");
 
     emitPipeline(builder);
 
+    builder->appendLine("// MARKER: DEPARSER BEGIN");
     builder->emitIndent();
     builder->appendFormat("%s:\n", endLabel.c_str());
     builder->emitIndent();
     builder->blockStart();
     deparser->emit(builder);
     builder->blockEnd(true);
+    builder->appendLine("// MARKER: DEPARSER END");
 
     builder->emitIndent();
     builder->appendFormat("if (%s && %s)\n", ingress->passVariable, egress->passVariable);
@@ -375,6 +379,7 @@ void UBPFProgram::emitLocalVariables(EBPF::CodeBuilder *builder) {
 }
 
 void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
+    builder->appendLine("// MARKER: INGRESS BEGIN");
     builder->emitIndent();
     builder->append(IR::ParserState::accept);
     builder->append(": // ingress");
@@ -384,7 +389,9 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     currentControlBlock = ingress;
     ingress->emit(builder);
     builder->blockEnd(true);
+    builder->appendLine("// MARKER: INGRESS END");
 
+    builder->appendLine("// MARKER: EGRESS BEGIN");
     builder->emitIndent();
     builder->append("egress");
     builder->append(":");
@@ -394,6 +401,7 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     currentControlBlock = egress;
     egress->emit(builder);
     builder->blockEnd(true);
+    builder->appendLine("// MARKER: EGRESS END");
 
     currentControlBlock = nullptr;
 }
