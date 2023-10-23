@@ -381,6 +381,7 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     builder->newline();
     builder->emitIndent();
     builder->blockStart();
+    currentControlBlock = ingress;
     ingress->emit(builder);
     builder->blockEnd(true);
 
@@ -390,8 +391,11 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     builder->newline();
     builder->emitIndent();
     builder->blockStart();
+    currentControlBlock = egress;
     egress->emit(builder);
     builder->blockEnd(true);
+
+    currentControlBlock = nullptr;
 }
 
 }  // namespace UBPF

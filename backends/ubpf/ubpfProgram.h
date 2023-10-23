@@ -42,6 +42,8 @@ class UBPFProgram : public EBPF::EBPFProgram {
     UBPFDeparser *deparser{};
     UBPFModel &model;
 
+    UBPFControl *currentControlBlock{};
+
     cstring contextVar, outerHdrOffsetVar, outerHdrLengthVar;
     cstring stdMetadataVar;
     cstring packetTruncatedSizeVar;
