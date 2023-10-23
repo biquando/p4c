@@ -529,8 +529,8 @@ void UBPFTable::emitDefaultAction(EBPF::CodeBuilder *builder, cstring varName) {
     auto action = ac->action;
 
     cstring name = generateActionName(action);
-    cstring defaultTable = defaultActionMapName;
-    cstring value = name + "_value";
+    // cstring defaultTable = defaultActionMapName;
+    // cstring value = name + "_value";
 
     builder->emitIndent();
     builder->appendFormat("struct %s %s = ", valueTypeName.c_str(), varName);
