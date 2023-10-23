@@ -17,6 +17,7 @@ limitations under the License.
 #include "ubpfTable.h"
 
 #include "backends/ebpf/codeGen.h"
+#include "backends/ebpf/ebpfObject.h"
 #include "backends/ebpf/target.h"
 #include "frontends/p4/coreLibrary.h"
 #include "frontends/p4/enumInstance.h"
@@ -317,7 +318,7 @@ cstring UBPFTable::generateActionName(const IR::P4Action *action) {
     if (action->getName().originalName == P4::P4CoreLibrary::instance().noAction.name) {
         return this->noActionName;
     } else {
-        return EBPF::EBPFObject::externalName(action);
+        return EBPF::EBPFObject::externalName(action) + "_" + dataMapName;
     }
 }
 
@@ -358,7 +359,7 @@ void UBPFTable::emitValueType(EBPF::CodeBuilder *builder) {
     for (auto a : actionList->actionList) {
         auto adecl = program->refMap->getDeclaration(a->getPath(), true);
         auto action = adecl->getNode()->to<IR::P4Action>();
-        cstring name = generateActionName(action);
+        cstring name = EBPF::EBPFObject::externalName(action);
         emitActionArguments(builder, action, name);
     }
 
@@ -474,7 +475,7 @@ void UBPFTable::emitInitializer(EBPF::CodeBuilder *builder) {
     EBPF::CodeGenInspector cg(program->refMap, program->typeMap);
     cg.setBuilder(builder);
     builder->emitIndent();
-    builder->appendFormat(".u = {.%s = {", name.c_str());
+    builder->appendFormat(".u = {.%s = {", EBPF::EBPFObject::externalName(action));
     for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
         auto arg = mi->substitution.lookup(p);
         arg->apply(cg);
@@ -540,7 +541,7 @@ void UBPFTable::emitDefaultAction(EBPF::CodeBuilder *builder, cstring varName) {
     EBPF::CodeGenInspector cg(program->refMap, program->typeMap);
     cg.setBuilder(builder);
     builder->emitIndent();
-    builder->appendFormat(".u = {.%s = {", name.c_str());
+    builder->appendFormat(".u = {.%s = {", EBPF::EBPFObject::externalName(action));
     for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
         auto arg = mi->substitution.lookup(p);
         arg->apply(cg);
