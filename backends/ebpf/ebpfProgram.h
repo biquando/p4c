@@ -70,14 +70,14 @@ class EBPFProgram : public EBPFObject {
           parser(nullptr),
           control(nullptr),
           model(EBPFModel::instance) {
-        offsetVar = EBPFModel::reserved("packetOffsetInBits");
-        zeroKey = EBPFModel::reserved("zero");
+        offsetVar = "ctx->" + EBPFModel::reserved("packetOffsetInBits");
+        zeroKey = "ctx->" + EBPFModel::reserved("zero");
         functionName = EBPFModel::reserved("filter");
         errorVar = EBPFModel::reserved("errorCode");
         packetStartVar = EBPFModel::reserved("packetStart");
         packetEndVar = EBPFModel::reserved("packetEnd");
-        lengthVar = EBPFModel::reserved("pkt_len");
-        byteVar = EBPFModel::reserved("byte");
+        lengthVar = "ctx->" + EBPFModel::reserved("pkt_len");
+        byteVar = "ctx->" + EBPFModel::reserved("byte");
         endLabel = EBPFModel::reserved("end");
         errorEnum = EBPFModel::reserved("errorCodes");
     }

@@ -652,8 +652,8 @@ void UBPFControl::emitTableMapFunctions(EBPF::CodeBuilder *builder) {
 }
 
 bool UBPFControl::build() {
-    hitVariable = program->refMap->newName("hit");
-    passVariable = program->refMap->newName("pass");
+    hitVariable = program->refMap->newName("ctx->hit");
+    passVariable = program->refMap->newName("ctx->pass");
     auto pl = controlBlock->container->type->applyParams;
     size_t numberOfArgs = UBPFModel::instance.numberOfControlBlockArguments();
     if (pl->size() != numberOfArgs) {

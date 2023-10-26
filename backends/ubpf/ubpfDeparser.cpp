@@ -328,8 +328,9 @@ void UBPFDeparser::emit(EBPF::CodeBuilder *builder) {
     builder->endOfStatement(true);
 
     builder->emitIndent();
-    builder->appendFormat("%s = ubpf_adjust_head(%s, %s)", program->packetStartVar.c_str(),
-                          program->contextVar.c_str(), program->outerHdrOffsetVar.c_str());
+    // builder->appendFormat("%s = ubpf_adjust_head(%s, %s)", program->packetStartVar.c_str(),
+    //                       program->contextVar.c_str(), program->outerHdrOffsetVar.c_str());
+    builder->appendFormat("%s -= %s", program->packetStartVar.c_str(), program->outerHdrOffsetVar.c_str());
     builder->endOfStatement(true);
 
     builder->emitIndent();

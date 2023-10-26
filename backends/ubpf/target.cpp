@@ -33,7 +33,9 @@ void UbpfTarget::emitIncludes(Util::SourceCodeBuilder *builder) const {
 
 void UbpfTarget::emitMain(Util::SourceCodeBuilder *builder, cstring functionName, cstring argName,
                           cstring standardMetdata) const {
-    builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata_t *%s)",
+    // builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata_t *%s)",
+    //                       functionName.c_str(), argName.c_str(), standardMetdata.c_str());
+    builder->appendFormat("uint64_t %s(struct packet_context *%s, struct standard_metadata_t *%s)",
                           functionName.c_str(), argName.c_str(), standardMetdata.c_str());
 }
 
@@ -98,7 +100,8 @@ void UbpfTarget::emitTableDecl(Util::SourceCodeBuilder *builder, cstring tblName
 }
 
 void UbpfTarget::emitGetPacketData(Util::SourceCodeBuilder *builder, cstring ctxVar) const {
-    builder->appendFormat("ubpf_packet_data(%s)", ctxVar.c_str());
+    // builder->appendFormat("ubpf_packet_data(%s)", ctxVar.c_str());
+    builder->appendFormat("%s->pkt", ctxVar.c_str());
 }
 
 void UbpfTarget::emitGetFromStandardMetadata(Util::SourceCodeBuilder *builder,

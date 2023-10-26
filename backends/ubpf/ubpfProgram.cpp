@@ -90,11 +90,31 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     builder->emitIndent();
     builder->target->emitChecksumHelpers(builder);
 
+    cstring packetContextDef =
+    "struct packet_context {\n"
+    "    uint8_t *pkt;  // should already be set to a pointer in buffer\n"
+    "    uint32_t pkt_len;\n"
+    "    struct headers hdr = {};\n"
+    "    struct metadata meta = {};\n"
+    "\n"
+    "    int packetOffsetInBits = 0;\n"
+    "    uint8_t pass = 1;\n"
+    "    uint8_t pass_0 = 1;\n"
+    "    uint8_t hit = 0;\n"
+    "    uint8_t hit_0 = 0;\n"
+    "    unsigned char ebpf_byte;\n"
+    "    uint32_t ebpf_zero = 0;\n"
+    "    int packetTruncatedSize = -1;\n"
+    "\n"
+    "    vector<uint8_t> buffer;  // should alread be set\n"
+    "};\n";
+    builder->append(packetContextDef);
+
     builder->emitIndent();
     builder->target->emitMain(builder, "entry", contextVar.c_str(), stdMetadataVar.c_str());
     builder->blockStart();
 
-    emitPktVariable(builder);
+    // emitPktVariable(builder);
 
     emitPacketLengthVariable(builder);
 
@@ -103,12 +123,12 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     parser->headerType->emitInitializer(builder);
     builder->endOfStatement(true);
 
-    emitMetadataInstance(builder);
-    builder->append(" = ");
-    parser->metadataType->emitInitializer(builder);
-    builder->endOfStatement(true);
+    // emitMetadataInstance(builder);
+    // builder->append(" = ");
+    // parser->metadataType->emitInitializer(builder);
+    // builder->endOfStatement(true);
 
-    emitLocalVariables(builder);
+    // emitLocalVariables(builder);
     builder->newline();
     builder->appendLine("// MARKER: PARSER BEGIN");
     builder->emitIndent();
@@ -128,6 +148,10 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     deparser->emit(builder);
     builder->blockEnd(true);
     builder->appendLine("// MARKER: DEPARSER END");
+
+    // Set ctx->hdr to hdr
+    builder->emitIndent();
+    builder->appendFormat("ctx->hdr = %s;\n", parser->headers->name.name);
 
     builder->emitIndent();
     builder->appendFormat("if (%s && %s)\n", ingress->passVariable, egress->passVariable);
@@ -249,7 +273,6 @@ void UBPFProgram::emitTableDefinition(EBPF::CodeBuilder *builder) const {
 
 void UBPFProgram::emitPktVariable(UbpfCodeBuilder *builder) const {
     builder->emitIndent();
-    // builder->appendFormat("void *%s = ", packetStartVar.c_str());
     builder->appendFormat("void *%s = ", packetStartVar.c_str());
     builder->target->emitGetPacketData(builder, contextVar);
     builder->endOfStatement(true);
@@ -257,7 +280,8 @@ void UBPFProgram::emitPktVariable(UbpfCodeBuilder *builder) const {
 
 void UBPFProgram::emitPacketLengthVariable(UbpfCodeBuilder *builder) const {
     builder->emitIndent();
-    builder->appendFormat("uint32_t %s = ", lengthVar.c_str());
+    // builder->appendFormat("uint32_t %s = ", lengthVar.c_str());
+    builder->appendFormat("%s = ", lengthVar.c_str());
     builder->target->emitGetFromStandardMetadata(builder, stdMetadataVar, "packet_length");
     builder->endOfStatement(true);
 }

@@ -53,15 +53,15 @@ class UBPFProgram : public EBPF::EBPFProgram {
                 P4::TypeMap *typeMap, const IR::ToplevelBlock *toplevel)
         : EBPF::EBPFProgram(options, program, refMap, typeMap, toplevel),
           model(UBPFModel::instance) {
-        packetStartVar = cstring("pkt");
-        offsetVar = cstring("packetOffsetInBits");
+        packetStartVar = cstring("ctx->pkt");
+        offsetVar = cstring("ctx->packetOffsetInBits");
         outerHdrOffsetVar = cstring("outHeaderOffset");
         outerHdrLengthVar = cstring("outHeaderLength");
         contextVar = cstring("ctx");
-        lengthVar = cstring("pkt_len");
+        lengthVar = cstring("ctx->pkt_len");
         endLabel = cstring("deparser");
         stdMetadataVar = cstring("standard_metadata");
-        packetTruncatedSizeVar = cstring("packetTruncatedSize");
+        packetTruncatedSizeVar = cstring("ctx->packetTruncatedSize");
     }
 
     bool build() override;
