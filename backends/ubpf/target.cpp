@@ -32,11 +32,11 @@ void UbpfTarget::emitIncludes(Util::SourceCodeBuilder *builder) const {
 }
 
 void UbpfTarget::emitMain(Util::SourceCodeBuilder *builder, cstring functionName, cstring argName,
-                          cstring standardMetdata) const {
+                          cstring standardMetdata, cstring hdrName) const {
     // builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata_t *%s)",
     //                       functionName.c_str(), argName.c_str(), standardMetdata.c_str());
-    builder->appendFormat("uint64_t %s(struct packet_context *%s, struct standard_metadata_t *%s)",
-                          functionName.c_str(), argName.c_str(), standardMetdata.c_str());
+    builder->appendFormat("uint64_t %s(struct packet_context *%s, struct standard_metadata_t *%s, struct headers &%s)",
+                          functionName.c_str(), argName.c_str(), standardMetdata.c_str(), hdrName.c_str());
 }
 
 void UbpfTarget::emitResizeBuffer(Util::SourceCodeBuilder *builder, cstring buffer,
@@ -122,19 +122,19 @@ void UbpfTarget::emitUbpfHelpers(EBPF::CodeBuilder *builder) const {
     //     "static void *(*ubpf_adjust_head)(const void *, uint64_t) = (void *)8;\n"
     //     "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t) = (void *)11;\n"
     //     "\n");
-    builder->append(
-        "static void *(*ubpf_map_lookup)(const void *, const void *);\n"
-        "static int (*ubpf_map_update)(void *, const void *, void *);\n"
-        "static int (*ubpf_map_delete)(void *, const void *);\n"
-        "static int (*ubpf_map_add)(void *, const void *);\n"
-        "static uint64_t (*ubpf_time_get_ns)();\n"
-        "static uint32_t (*ubpf_hash)(const void *, uint64_t);\n"
-        "static void (*ubpf_printf)(const char *fmt, ...);\n"
-        "static void *(*ubpf_packet_data)(const void *);\n"
-        "static void *(*ubpf_adjust_head)(const void *, uint64_t);\n"
-        "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t);\n"
-        "\n");
-    builder->newline();
+    // builder->append(
+    //     "static void *(*ubpf_map_lookup)(const void *, const void *);\n"
+    //     "static int (*ubpf_map_update)(void *, const void *, void *);\n"
+    //     "static int (*ubpf_map_delete)(void *, const void *);\n"
+    //     "static int (*ubpf_map_add)(void *, const void *);\n"
+    //     "static uint64_t (*ubpf_time_get_ns)();\n"
+    //     "static uint32_t (*ubpf_hash)(const void *, uint64_t);\n"
+    //     "static void (*ubpf_printf)(const char *fmt, ...);\n"
+    //     "static void *(*ubpf_packet_data)(const void *);\n"
+    //     "static void *(*ubpf_adjust_head)(const void *, uint64_t);\n"
+    //     "static uint32_t (*ubpf_truncate_packet)(const void *, uint64_t);\n"
+    //     "\n");
+    // builder->newline();
     builder->appendLine(
         "#define write_partial(a, w, s, v) do { *((uint8_t*)a) = ((*((uint8_t*)a)) "
         "& ~(BPF_MASK(uint8_t, w) << s)) | (v << s) ; } while (0)");

@@ -48,7 +48,7 @@ class UbpfTarget : public EBPF::Target {
     void emitMain(UNUSED Util::SourceCodeBuilder *builder, UNUSED cstring functionName,
                   UNUSED cstring argName) const override{};
     void emitMain(Util::SourceCodeBuilder *builder, cstring functionName, cstring argName,
-                  cstring standardMetadata) const;
+                  cstring standardMetadata, cstring hdrName) const;
     void emitUbpfHelpers(EBPF::CodeBuilder *builder) const;
     void emitChecksumHelpers(EBPF::CodeBuilder *builder) const;
 
