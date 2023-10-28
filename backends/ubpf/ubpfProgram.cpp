@@ -119,7 +119,7 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     parser->emit(builder);
 
     builder->emitIndent();
-    builder->appendLine("accept: { return 0; }");
+    builder->appendFormat("accept: { return %s; }\n", builder->target->forwardReturnCode());
     builder->blockEnd(true);
     builder->appendLine("// MARKER: PARSER END");
 
@@ -152,7 +152,7 @@ void UBPFProgram::emitC(UbpfCodeBuilder *builder, cstring headerFile) {
     builder->decreaseIndent();
 
     builder->emitIndent();
-    builder->appendLine("reject: { return 1; }");
+    builder->appendFormat("reject: { return %s; }\n", builder->target->dropReturnCode());
     builder->blockEnd(true);
     builder->appendLine("// MARKER: DEPARSER END");
 }
@@ -169,24 +169,25 @@ void UBPFProgram::emitH(EBPF::CodeBuilder *builder, cstring) {
     builder->newline();
     ingress->emitTableTypes(builder);
     egress->emitTableTypes(builder);
-    builder->appendLine("#if CONTROL_PLANE");
-    builder->appendLine("static void init_tables() ");
-    builder->blockStart();
-    builder->emitIndent();
-    builder->appendFormat("uint32_t %s = 0;", zeroKey.c_str());
-    builder->newline();
-    ingress->emitTableInitializers(builder);
-    egress->emitTableInitializers(builder);
-    builder->blockEnd(true);
-    builder->appendLine("#endif");
-    builder->appendLine("#endif");
+
+    // // Initialize tables
+    // builder->appendLine("#if CONTROL_PLANE");
+    // builder->appendLine("static void init_tables() ");
+    // builder->blockStart();
+    // builder->emitIndent();
+    // builder->appendFormat("uint32_t %s = 0;", zeroKey.c_str());
+    // builder->newline();
+    // ingress->emitTableInitializers(builder);
+    // egress->emitTableInitializers(builder);
+    // builder->blockEnd(true);
+    // builder->appendLine("#endif");
 
     cstring packetContextDef =
-    "struct packet_context {\n"
+    "struct PacketContext {\n"
     "    uint8_t *pkt;  // should already be set to a pointer in buffer\n"
     "    uint32_t pkt_len;\n"
     "    struct headers hdr = {};  // this should be passed into the parser/pipelines\n"
-    "    struct metadata meta = {};\n"
+    "    struct metadata meta = {};  // this should be passed into the parser/pipelines\n"
     "\n"
     "    int packetOffsetInBits = 0;\n"
     "    uint8_t pass = 1;\n"
@@ -204,10 +205,17 @@ void UBPFProgram::emitH(EBPF::CodeBuilder *builder, cstring) {
     ingress->emitTableMapDeclarations(builder);
     egress->emitTableMapDeclarations(builder);
 
-    builder->appendLine("uint64_t parser(struct packet_context *, struct standard_metadata_t *, struct headers &);");
-    builder->appendLine("uint64_t ingress(struct packet_context *, struct standard_metadata_t *, struct headers &);");
-    builder->appendLine("uint64_t egress(struct packet_context *, struct standard_metadata_t *, struct headers &);");
-    builder->appendLine("uint64_t deparser(struct packet_context *, struct standard_metadata_t *, struct headers &);");
+    auto *ubuilder = static_cast<UbpfCodeBuilder *>(builder);
+    ubuilder->target->emitMain(builder, "parser", "", "", "");
+    builder->append(";\n");
+    ubuilder->target->emitMain(builder, "ingress", "", "", "");
+    builder->append(";\n");
+    ubuilder->target->emitMain(builder, "egress", "", "", "");
+    builder->append(";\n");
+    ubuilder->target->emitMain(builder, "deparser", "", "", "");
+    builder->append(";\n");
+
+    builder->appendLine("#endif");
 }
 
 void UBPFProgram::emitPreamble(EBPF::CodeBuilder *builder) {
@@ -365,7 +373,7 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     ingress->emit(builder);
     builder->blockEnd(true);
     builder->emitIndent();
-    builder->appendLine("return 0;");
+    builder->appendFormat("return %s;\n", builder->target->forwardReturnCode());
     builder->blockEnd(true);
     builder->appendLine("// MARKER: INGRESS END");
 
@@ -386,7 +394,7 @@ void UBPFProgram::emitPipeline(EBPF::CodeBuilder *builder) {
     egress->emit(builder);
     builder->blockEnd(true);
     builder->emitIndent();
-    builder->appendLine("return 0;");
+    builder->appendFormat("return %s;\n", builder->target->forwardReturnCode());
     builder->blockEnd(true);
     builder->appendLine("// MARKER: EGRESS END");
 

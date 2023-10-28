@@ -35,7 +35,7 @@ void UbpfTarget::emitMain(Util::SourceCodeBuilder *builder, cstring functionName
                           cstring standardMetdata, cstring hdrName) const {
     // builder->appendFormat("uint64_t %s(void *%s, struct standard_metadata_t *%s)",
     //                       functionName.c_str(), argName.c_str(), standardMetdata.c_str());
-    builder->appendFormat("uint64_t %s(struct packet_context *%s, struct standard_metadata_t *%s, struct headers &%s)",
+    builder->appendFormat("uint64_t %s(struct PacketContext *%s, struct standard_metadata_t *%s, struct headers &%s, struct metadata &meta)",
                           functionName.c_str(), argName.c_str(), standardMetdata.c_str(), hdrName.c_str());
 }
 
