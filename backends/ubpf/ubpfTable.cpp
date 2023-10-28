@@ -710,4 +710,12 @@ void UBPFTable::emitMapFunctions(EBPF::CodeBuilder *builder) {
     builder->appendFormat("// END MAP FUNCTIONS: %s\n\n", dataMapName);
 }
 
+void UBPFTable::emitMapDeclarations(EBPF::CodeBuilder *builder) {
+    builder->appendFormat(
+        "void map_create_%s();\n"
+        "void map_add_entry_%s(%s *key, %s *val);\n"
+        "%s *map_lookup_%s(%s *key);\n",
+    dataMapName, dataMapName, keyTypeName, valueTypeName, valueTypeName, dataMapName, keyTypeName);
+}
+
 }  // namespace UBPF

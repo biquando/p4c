@@ -81,6 +81,7 @@ class UBPFTable final : public UBPFTableBase {
     void emitLPMFunctions(EBPF::CodeBuilder *builder);
     void emitExactFunctions(EBPF::CodeBuilder *builder);
     void emitMapFunctions(EBPF::CodeBuilder *builder);
+    void emitMapDeclarations(EBPF::CodeBuilder *builder);
 };
 
 }  // namespace UBPF

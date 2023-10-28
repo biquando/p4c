@@ -201,6 +201,13 @@ void UBPFProgram::emitH(EBPF::CodeBuilder *builder, cstring) {
     "};\n";
     builder->append(packetContextDef);
 
+    ingress->emitTableMapDeclarations(builder);
+    egress->emitTableMapDeclarations(builder);
+
+    builder->appendLine("uint64_t parser(struct packet_context *, struct standard_metadata_t *, struct headers &);");
+    builder->appendLine("uint64_t ingress(struct packet_context *, struct standard_metadata_t *, struct headers &);");
+    builder->appendLine("uint64_t egress(struct packet_context *, struct standard_metadata_t *, struct headers &);");
+    builder->appendLine("uint64_t deparser(struct packet_context *, struct standard_metadata_t *, struct headers &);");
 }
 
 void UBPFProgram::emitPreamble(EBPF::CodeBuilder *builder) {

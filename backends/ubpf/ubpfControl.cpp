@@ -651,6 +651,13 @@ void UBPFControl::emitTableMapFunctions(EBPF::CodeBuilder *builder) {
     builder->blockEnd(true);
 }
 
+void UBPFControl::emitTableMapDeclarations(EBPF::CodeBuilder *builder) {
+    for (auto it : tables) {
+        it.second->emitMapDeclarations(builder);
+    }
+    builder->appendFormat("void create_maps_%s();\n", controlName);
+}
+
 bool UBPFControl::build() {
     hitVariable = program->refMap->newName("ctx->hit");
     passVariable = program->refMap->newName("ctx->pass");
