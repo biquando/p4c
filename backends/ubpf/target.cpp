@@ -28,6 +28,8 @@ void UbpfTarget::emitIncludes(Util::SourceCodeBuilder *builder) const {
         "#include <unordered_map>\n"
         "#include \"bf_lpm_trie/bf_lpm_trie.h\"\n"
         "#include <string.h>\n"
+        "#include <fstream>\n"
+        "#include <string>\n"
         "\n");
 }
 
